@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.12-alpine AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -15,3 +15,11 @@ RUN uv pip install --system .
 EXPOSE 8000
 
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+
+FROM runtime AS test
+
+RUN uv pip install --system ".[dev]"
+
+COPY src/tests ./src/tests
+
+CMD ["pytest", "-q"]
