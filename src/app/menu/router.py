@@ -26,12 +26,22 @@ async def list_menu(service: MenuServiceDep) -> list[MenuItemRead]:
     return [MenuItemRead.model_validate(item) for item in await service.list_menu()]
 
 
-@router.post("/items", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/items",
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"description": "Malformed request body"}},
+)
 async def create_item(data: MenuItemCreate, service: MenuServiceDep) -> MenuItemRead:
     return MenuItemRead.model_validate(await service.create_item(data))
 
 
-@router.patch("/items/{item_id}")
+@router.patch(
+    "/items/{item_id}",
+    responses={
+        400: {"description": "Malformed request body"},
+        404: {"description": "Menu item not found"},
+    },
+)
 async def update_item(
     item_id: uuid.UUID, data: MenuItemUpdate, service: MenuServiceDep
 ) -> MenuItemRead:
@@ -43,7 +53,11 @@ async def update_item(
         ) from None
 
 
-@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"description": "Menu item not found"}},
+)
 async def delete_item(item_id: uuid.UUID, service: MenuServiceDep) -> None:
     try:
         await service.delete_item(item_id)

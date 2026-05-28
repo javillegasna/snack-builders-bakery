@@ -53,3 +53,26 @@ async def test_delete_item(client: AsyncClient) -> None:
 async def test_update_missing_returns_404(client: AsyncClient) -> None:
     resp = await client.patch(f"/menu/items/{uuid.uuid4()}", json={"price": "1.00"})
     assert resp.status_code == 404
+
+
+async def test_oversized_price_is_rejected_not_500(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/menu/items",
+        json={"name": "Gold Loaf", "category": "bread", "price": "1000000000.00"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_patch_null_price_is_ignored(client: AsyncClient) -> None:
+    created = await client.post(
+        "/menu/items",
+        json={"name": "Roll", "category": "bread", "price": "2.00"},
+    )
+    item_id = created.json()["id"]
+
+    updated = await client.patch(
+        f"/menu/items/{item_id}", json={"price": None, "available": False}
+    )
+    assert updated.status_code == 200
+    assert updated.json()["price"] == "2.00"
+    assert updated.json()["available"] is False

@@ -45,12 +45,17 @@ dashboards:
 e2e:
 	docker compose up -d --build api
 	E2E_BASE_URL=http://localhost:8000 uv run pytest src/e2e -q
-	uv run schemathesis run http://localhost:8000/openapi.json
+	uv run schemathesis run http://localhost:8000/openapi.json --checks not_a_server_error
 
 .PHONY: e2e-flows
 e2e-flows:
 	docker compose up -d --build api
 	E2E_BASE_URL=http://localhost:8000 uv run pytest src/e2e -q
+
+.PHONY: e2e-fuzz-full
+e2e-fuzz-full:
+	docker compose up -d --build api
+	uv run schemathesis run http://localhost:8000/openapi.json
 
 .PHONY: down
 down:

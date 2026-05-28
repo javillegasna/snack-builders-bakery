@@ -24,7 +24,8 @@ class MenuService:
 
     async def update_item(self, item_id: uuid.UUID, data: MenuItemUpdate) -> MenuItem:
         item = await self._require(item_id)
-        for field, value in data.model_dump(exclude_unset=True).items():
+        updates = data.model_dump(exclude_unset=True, exclude_none=True)
+        for field, value in updates.items():
             setattr(item, field, value)
         return await self._repository.add(item)
 
