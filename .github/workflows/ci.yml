@@ -34,3 +34,46 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src/app
       - run: uv run pytest -q
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bakery
+          POSTGRES_PASSWORD: bakery
+          POSTGRES_DB: bakery
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bakery"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: bakery
+      POSTGRES_PASSWORD: bakery
+      POSTGRES_DB: bakery
+      OTEL_ENABLED: "false"
+      E2E_BASE_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --extra dev
+      - run: uv run alembic upgrade head
+      - name: Start API
+        run: |
+          uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo "API_PID=$!" >> "$GITHUB_ENV"
+      - name: E2E flows
+        run: uv run pytest src/e2e -q
+      - name: Schemathesis contract (no server errors)
+        run: uv run schemathesis run http://localhost:8000/openapi.json --checks not_a_server_error --phases coverage,stateful
+      - name: Stop API
+        if: always()
+        run: kill "$API_PID" || true

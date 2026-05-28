@@ -1,22 +1,46 @@
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field
 
 from app.menu.models import Category
 
+_MAX_PRICE = Decimal("99999999.99")
+
+
+def _reject_null_bytes(value: str) -> str:
+    if "\x00" in value:
+        raise ValueError("must not contain null bytes")
+    return value
+
+
+NameField = Annotated[
+    str, Field(min_length=1, max_length=120), AfterValidator(_reject_null_bytes)
+]
+PriceField = Annotated[
+    Decimal,
+    Field(
+        gt=0,
+        le=_MAX_PRICE,
+        max_digits=10,
+        decimal_places=2,
+        json_schema_extra={"multipleOf": 0.01},
+    ),
+]
+
 
 class MenuItemCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: NameField
     category: Category
-    price: Decimal = Field(gt=0)
+    price: PriceField
     available: bool = True
 
 
 class MenuItemUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    name: NameField | None = None
     category: Category | None = None
-    price: Decimal | None = Field(default=None, gt=0)
+    price: PriceField | None = None
     available: bool | None = None
 
 
