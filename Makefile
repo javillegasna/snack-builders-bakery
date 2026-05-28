@@ -16,14 +16,14 @@ typecheck:
 
 .PHONY: test
 test:
-	uv run pytest -q
+	docker compose --profile test run --build --rm tests
 
 .PHONY: check
 check:
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run mypy src/app
-	uv run pytest -q
+	docker compose --profile test run --build --rm tests
 
 .PHONY: run
 run:

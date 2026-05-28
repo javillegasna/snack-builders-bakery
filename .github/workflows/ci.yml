@@ -8,6 +8,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bakery
+          POSTGRES_PASSWORD: bakery
+          POSTGRES_DB: bakery
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bakery"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://bakery:bakery@localhost:5432/bakery
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
