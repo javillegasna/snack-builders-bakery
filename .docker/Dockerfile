@@ -8,7 +8,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml README.md ./
-COPY app ./app
+COPY src/app ./src/app
 RUN uv pip install --system .
 
 EXPOSE 8000
