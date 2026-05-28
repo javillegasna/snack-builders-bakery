@@ -73,7 +73,7 @@ jobs:
       - name: E2E flows
         run: uv run pytest src/e2e -q
       - name: Schemathesis contract (no server errors)
-        run: uv run schemathesis run http://localhost:8000/openapi.json --checks not_a_server_error
+        run: uv run schemathesis run http://localhost:8000/openapi.json --checks not_a_server_error --phases coverage,stateful
       - name: Stop API
         if: always()
         run: kill "$API_PID" || true

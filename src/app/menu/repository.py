@@ -22,9 +22,9 @@ class MenuRepository:
 
     async def add(self, item: MenuItem) -> MenuItem:
         self._session.add(item)
-        await self._session.flush()
+        await self._session.commit()
         return item
 
     async def delete(self, item: MenuItem) -> None:
         await self._session.delete(item)
-        await self._session.flush()
+        await self._session.commit()

@@ -63,6 +63,14 @@ async def test_oversized_price_is_rejected_not_500(client: AsyncClient) -> None:
     assert resp.status_code == 422
 
 
+async def test_name_with_null_byte_is_rejected(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/menu/items",
+        json={"name": "bad\x00name", "category": "bread", "price": "2.00"},
+    )
+    assert resp.status_code == 422
+
+
 async def test_patch_null_price_is_ignored(client: AsyncClient) -> None:
     created = await client.post(
         "/menu/items",
