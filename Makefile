@@ -41,6 +41,17 @@ obs:
 dashboards:
 	uv run python src/observability/seed_dashboards.py
 
+.PHONY: e2e
+e2e:
+	docker compose up -d --build api
+	E2E_BASE_URL=http://localhost:8000 uv run pytest src/e2e -q
+	uv run schemathesis run http://localhost:8000/openapi.json
+
+.PHONY: e2e-flows
+e2e-flows:
+	docker compose up -d --build api
+	E2E_BASE_URL=http://localhost:8000 uv run pytest src/e2e -q
+
 .PHONY: down
 down:
 	docker compose down
