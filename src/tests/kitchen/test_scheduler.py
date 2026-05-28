@@ -124,3 +124,72 @@ def test_estimate_vip_ready_before_lower_priority() -> None:
     scheduler.enqueue(make_task(7, PriorityLevel.VIP, order_id=vip_order))
     ready = scheduler.estimate(NOW)
     assert ready[vip_order] < ready[walk_order]
+
+
+def test_simulate_does_not_mutate_state() -> None:
+    scheduler = Scheduler()
+    for seq in range(3):
+        scheduler.enqueue(make_task(seq))
+    queue_before = [t.id for t in scheduler.queue]
+    slots_before = [slot.task for slot in scheduler.slots]
+    new_order = uuid.uuid4()
+    scheduler.simulate(NOW, [make_task(99, order_id=new_order)])
+    assert [t.id for t in scheduler.queue] == queue_before
+    assert [slot.task for slot in scheduler.slots] == slots_before
+
+
+def test_simulate_returns_only_extra_orders() -> None:
+    scheduler = Scheduler()
+    existing = uuid.uuid4()
+    scheduler.enqueue(make_task(0, order_id=existing))
+    new_order = uuid.uuid4()
+    ready = scheduler.simulate(NOW, [make_task(1, order_id=new_order)])
+    assert set(ready) == {new_order}
+
+
+def test_simulate_empty_kitchen_ready_after_one_batch() -> None:
+    scheduler = Scheduler()
+    new_order = uuid.uuid4()
+    ready = scheduler.simulate(NOW, [make_task(0, order_id=new_order)])
+    assert (ready[new_order] - NOW).total_seconds() == COOKIE
+
+
+def test_simulate_waits_behind_full_kitchen() -> None:
+    scheduler = Scheduler()
+    for seq in range(SLOT_COUNT):
+        scheduler.enqueue(make_task(seq))
+    scheduler.tick(NOW)
+    new_order = uuid.uuid4()
+    ready = scheduler.simulate(NOW, [make_task(99, order_id=new_order)])
+    assert (ready[new_order] - NOW).total_seconds() == 2 * COOKIE
+
+
+def test_simulate_vip_jumps_existing_queue() -> None:
+    scheduler = Scheduler()
+    for seq in range(SLOT_COUNT):
+        scheduler.enqueue(make_task(seq, PriorityLevel.WALK_IN))
+    for seq in range(SLOT_COUNT, SLOT_COUNT + 3):
+        scheduler.enqueue(make_task(seq, PriorityLevel.WALK_IN))
+    vip_order = uuid.uuid4()
+    walk_order = uuid.uuid4()
+    ready = scheduler.simulate(
+        NOW,
+        [
+            make_task(100, PriorityLevel.VIP, order_id=vip_order),
+            make_task(101, PriorityLevel.WALK_IN, order_id=walk_order),
+        ],
+    )
+    assert ready[vip_order] < ready[walk_order]
+
+
+def test_simulate_multi_item_order_ready_at_last_item() -> None:
+    scheduler = Scheduler()
+    order = uuid.uuid4()
+    ready = scheduler.simulate(
+        NOW,
+        [
+            make_task(0, bake_seconds=COOKIE, order_id=order),
+            make_task(1, bake_seconds=BREAD, order_id=order),
+        ],
+    )
+    assert (ready[order] - NOW).total_seconds() == BREAD
