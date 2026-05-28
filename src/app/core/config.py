@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     app_name: str = "Snack Builders Bakery API"
     environment: str = "development"
 
+    log_level: str = "INFO"
+    log_json: bool = True
+
+    otel_enabled: bool = False
+    otel_service_name: str = ""
+    otel_exporter_otlp_endpoint: str = ""
+    otel_exporter_otlp_headers: str = ""
+
     postgres_user: str = "bakery"
     postgres_password: str = ""
     postgres_db: str = "bakery"

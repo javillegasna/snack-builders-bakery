@@ -3,9 +3,15 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.db import engine
+from app.core.logging import configure_logging
+from app.core.telemetry import configure_telemetry
 from app.menu.router import router as menu_router
 
-app = FastAPI(title=get_settings().app_name)
+_settings = get_settings()
+configure_logging(_settings)
+
+app = FastAPI(title=_settings.app_name)
+configure_telemetry(app, _settings)
 
 app.include_router(menu_router)
 

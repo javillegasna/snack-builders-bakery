@@ -16,6 +16,18 @@ services:
       timeout: 3s
       retries: 10
 
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    environment:
+      ZO_ROOT_USER_EMAIL: ${ZO_ROOT_USER_EMAIL}
+      ZO_ROOT_USER_PASSWORD: ${ZO_ROOT_USER_PASSWORD}
+    volumes:
+      - o2data:/data
+    ports:
+      - "5080:5080"
+    networks:
+      - bakery
+
   api:
     build:
       context: .
@@ -24,9 +36,13 @@ services:
     env_file: .env
     environment:
       POSTGRES_HOST: db
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://openobserve:5080/api/default
     depends_on:
       db:
         condition: service_healthy
+      openobserve:
+        condition: service_started
     ports:
       - "8000:8000"
     networks:
@@ -62,3 +78,4 @@ networks:
 
 volumes:
   pgdata:
+  o2data:

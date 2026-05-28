@@ -33,6 +33,14 @@ run:
 up:
 	docker compose up --build
 
+.PHONY: obs
+obs:
+	docker compose up openobserve
+
+.PHONY: dashboards
+dashboards:
+	uv run python src/observability/seed_dashboards.py
+
 .PHONY: down
 down:
 	docker compose down
