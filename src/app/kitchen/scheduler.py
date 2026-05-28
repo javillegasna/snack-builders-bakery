@@ -39,6 +39,19 @@ class Scheduler:
         return completed
 
     def estimate(self, now: datetime) -> dict[uuid.UUID, datetime]:
+        return self._project(now, self._queue)
+
+    def simulate(
+        self, now: datetime, extra: list[BakeTask]
+    ) -> dict[uuid.UUID, datetime]:
+        entries = self._queue + [(int(t.priority), t.seq, t) for t in extra]
+        ready = self._project(now, entries)
+        order_ids = {t.order_id for t in extra}
+        return {oid: ready[oid] for oid in order_ids if oid in ready}
+
+    def _project(
+        self, now: datetime, entries: list[QueueEntry]
+    ) -> dict[uuid.UUID, datetime]:
         free_heap: list[datetime] = []
         ready: dict[uuid.UUID, datetime] = {}
         for slot in self._slots:
@@ -50,7 +63,7 @@ class Scheduler:
                 heapq.heappush(free_heap, finish)
             else:
                 heapq.heappush(free_heap, now)
-        for _, _, task in sorted(self._queue):
+        for _, _, task in sorted(entries):
             free_at = heapq.heappop(free_heap)
             finish = max(free_at, now) + timedelta(seconds=task.bake_seconds)
             previous = ready.get(task.order_id)
