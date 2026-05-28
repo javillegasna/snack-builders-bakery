@@ -1,0 +1,116 @@
+{
+  "version": 5,
+  "title": "Bakery API Overview",
+  "description": "Auto-seeded: request rate, latency, routes (traces) and log volume.",
+  "role": "",
+  "variables": { "list": [], "showDynamicFilters": false },
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "Default",
+      "panels": [
+        {
+          "id": "panel_req_rate",
+          "type": "line",
+          "title": "Requests over time",
+          "description": "HTTP server spans grouped over time.",
+          "config": { "show_legends": true, "unit": null, "decimals": 2 },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT histogram(_timestamp) as \"x_axis_1\", count(*) as \"y_axis_1\" FROM \"default\" WHERE http_route IS NOT NULL GROUP BY x_axis_1 ORDER BY x_axis_1",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [{ "label": "Time", "alias": "x_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "histogram" }],
+                "y": [{ "label": "Requests", "alias": "y_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "count" }],
+                "z": [],
+                "filter": { "filterType": "group", "logicalOperator": "AND", "conditions": [] }
+              },
+              "config": { "promql_legend": "", "layer_type": "scatter", "weight_fixed": 1 }
+            }
+          ],
+          "layout": { "x": 0, "y": 0, "w": 24, "h": 9, "i": 1 }
+        },
+        {
+          "id": "panel_latency",
+          "type": "line",
+          "title": "Avg request duration (us)",
+          "description": "Average span duration for HTTP server spans.",
+          "config": { "show_legends": true, "unit": null, "decimals": 0 },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT histogram(_timestamp) as \"x_axis_1\", avg(duration) as \"y_axis_1\" FROM \"default\" WHERE http_route IS NOT NULL GROUP BY x_axis_1 ORDER BY x_axis_1",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [{ "label": "Time", "alias": "x_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "histogram" }],
+                "y": [{ "label": "Avg duration", "alias": "y_axis_1", "column": "duration", "color": null, "aggregationFunction": "avg" }],
+                "z": [],
+                "filter": { "filterType": "group", "logicalOperator": "AND", "conditions": [] }
+              },
+              "config": { "promql_legend": "", "layer_type": "scatter", "weight_fixed": 1 }
+            }
+          ],
+          "layout": { "x": 0, "y": 9, "w": 12, "h": 9, "i": 2 }
+        },
+        {
+          "id": "panel_routes",
+          "type": "bar",
+          "title": "Requests by route",
+          "description": "Count of HTTP server spans per route.",
+          "config": { "show_legends": false, "unit": null, "decimals": 0 },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT http_route as \"x_axis_1\", count(*) as \"y_axis_1\" FROM \"default\" WHERE http_route IS NOT NULL GROUP BY x_axis_1 ORDER BY y_axis_1 DESC",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [{ "label": "Route", "alias": "x_axis_1", "column": "http_route", "color": null }],
+                "y": [{ "label": "Requests", "alias": "y_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "count" }],
+                "z": [],
+                "filter": { "filterType": "group", "logicalOperator": "AND", "conditions": [] }
+              },
+              "config": { "promql_legend": "", "layer_type": "scatter", "weight_fixed": 1 }
+            }
+          ],
+          "layout": { "x": 12, "y": 9, "w": 12, "h": 9, "i": 3 }
+        },
+        {
+          "id": "panel_log_volume",
+          "type": "line",
+          "title": "Log volume by severity",
+          "description": "Log records over time split by severity.",
+          "config": { "show_legends": true, "unit": null, "decimals": 0 },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT histogram(_timestamp) as \"x_axis_1\", count(*) as \"y_axis_1\", severity as \"breakdown_1\" FROM \"default\" GROUP BY x_axis_1, breakdown_1 ORDER BY x_axis_1",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "logs",
+                "x": [{ "label": "Time", "alias": "x_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "histogram" }],
+                "y": [{ "label": "Logs", "alias": "y_axis_1", "column": "_timestamp", "color": null, "aggregationFunction": "count" }],
+                "breakdown": [{ "label": "Severity", "alias": "breakdown_1", "column": "severity", "color": null }],
+                "z": [],
+                "filter": { "filterType": "group", "logicalOperator": "AND", "conditions": [] }
+              },
+              "config": { "promql_legend": "", "layer_type": "scatter", "weight_fixed": 1 }
+            }
+          ],
+          "layout": { "x": 0, "y": 18, "w": 24, "h": 9, "i": 4 }
+        }
+      ]
+    }
+  ]
+}
