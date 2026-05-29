@@ -1,94 +1,118 @@
 # Snack Builders Bakery — Backend API
 
-A backend for a bakery that sells cookies, pastries and breads. It handles the
-storefront (menu), customer orders and payments, and — the interesting part — a
-**priority-based kitchen scheduler** that decides what gets baked, when, across a
-limited set of ovens.
+Backend for a bakery (cookies, pastries, breads). It runs the storefront menu,
+customer orders and payments, and a **priority-based kitchen scheduler** that
+decides what bakes, when, across a limited set of ovens.
 
-> Coding exercise. This README is the entry point; deeper design notes live with
-> the code as the project grows.
+## How it works
 
-## The problem in one paragraph
+**The kitchen** has 2 ovens × 3 trays = **6 items baking at once**. The scheduling
+unit is one snack on one tray (an order of 3 cookies uses 3 trays).
 
-The kitchen has **2 ovens × 3 trays = 6 items baking at once**. Orders come in at
-three priority tiers (VIP, app/delivery, walk-in). When a tray frees up, the
-highest-priority item waiting goes in next — but anything already baking is left
-alone (no pulling things out of a hot oven). Each order gets an estimated ready
-time the moment it's placed, and when a VIP jumps the line, everyone behind them
-sees their estimate pushed back. Bake times depend on the snack: cookies 5 min,
-pastries 10 min, breads 20 min.
+**Priority queue.** Orders are VIP, app/delivery, or walk-in. When a tray frees,
+the highest-priority waiting unit goes in. **No preemption** — anything already
+baking finishes; a VIP only jumps the *waiting* line, which pushes later orders'
+estimates back.
+
+**Order lifecycle:**
+
+```
+PENDING_PAYMENT ──pay──▶ QUEUED ──▶ BAKING ──▶ READY ──pickup──▶ COMPLETED
+       │                  └──────── kitchen ────────┘
+       └──▶ CANCELLED
+```
+
+- **Placement** returns a *provisional* ETA (non-mutating simulation); the order
+  doesn't hold an oven yet.
+- **Payment** commits the order into the live queue and returns the *authoritative*
+  ETA. Other orders' ETAs are recomputed and persisted.
+- The kitchen **persists progress** (`BAKING`/`READY` + timestamps) and **rebuilds
+  its queue on restart** from active orders.
+
+**Bake time** defaults per category (cookie 5 min, pastry 10 min, bread 20 min) and
+can be overridden per menu item (`bake_seconds`).
 
 ## Stack
 
 - **FastAPI** (async) + **Pydantic v2**
-- **PostgreSQL** + **SQLAlchemy 2.0 (async)** + Alembic
-- Pure-Python scheduler core (`heapq`, no framework deps)
-- **pytest** for tests, with an injectable clock so we can fast-forward time
-- **Docker Compose** for one-command setup, Prometheus + structured logs for visibility
+- **PostgreSQL** + **SQLAlchemy 2.0 (async)** + **Alembic**
+- Pure-Python scheduler core (`heapq`) with an injectable clock for deterministic,
+  fast-forwardable tests
+- **pytest** (unit) + black-box **e2e** (httpx flows + Schemathesis contract tests)
+- **Docker Compose** for one-command setup; **OpenTelemetry → OpenObserve** for logs,
+  metrics and traces
+- **uv** for dependency management
 
-## Architecture
+## Layout
 
-A **modular monolith** organized by feature (vertical slices) rather than by
-technical layer — each feature owns its router, service, models and schemas:
+Modular monolith, organized by feature (vertical slices) — each owns its router,
+service, repository, models and schemas:
 
 ```
-app/
-  core/      # config, db, clock, logging, metrics
+src/app/
+  core/      # config, db, clock, logging, telemetry
   menu/      # browse + manage items
-  orders/    # place + track
-  payments/  # cash / card
-  kitchen/   # the scheduler lives here
+  orders/    # place, track, pickup, state machine
+  payments/  # cash / card (Strategy)
+  kitchen/   # the scheduler + live engine
+src/migrations/   # Alembic migrations
+src/tests/        # unit tests, by module
+src/e2e/          # black-box tests against a running API
 ```
 
-The scheduler is kept deliberately pure — it never reads the wall clock directly;
-time is passed in. That keeps the trickiest logic easy to test and lets the suite
-simulate "what happens 20 minutes from now" without waiting 20 minutes.
+The scheduler never reads the wall clock directly — time is passed in — so the
+trickiest logic is easy to test and the suite can simulate "20 minutes from now"
+without waiting.
 
-## Planned endpoints
+## Endpoints
 
-| Method | Endpoint | Who | What |
-|--------|----------|-----|------|
-| GET    | `/menu` | anyone | browse available items |
-| POST   | `/menu/items` | manager | add an item |
-| PATCH  | `/menu/items/{id}` | manager | update an item |
-| DELETE | `/menu/items/{id}` | manager | remove an item |
-| POST   | `/orders` | customer | place an order → ticket with price + ETA |
-| GET    | `/orders/{id}` | customer | track status + ETA |
-| POST   | `/orders/{id}/payment` | customer | pay (cash or card) → enters the kitchen queue |
-| GET    | `/kitchen/status` | manager | what's in each oven + what's waiting |
-| GET    | `/metrics` | ops | Prometheus metrics |
-| GET    | `/health` | ops | liveness |
+| Method | Endpoint | What |
+|--------|----------|------|
+| GET    | `/menu` | browse available items |
+| POST   | `/menu/items` | add an item (optional `bake_seconds` override) |
+| PATCH  | `/menu/items/{id}` | update an item |
+| DELETE | `/menu/items/{id}` | remove an item (409 if referenced by orders) |
+| POST   | `/orders` | place an order → price + provisional ETA |
+| GET    | `/orders/{id}` | track status + ETA + timings |
+| POST   | `/orders/{id}/payment` | pay (cash/card) → enqueue + authoritative ETA |
+| POST   | `/orders/{id}/pickup` | mark a `READY` order collected → `COMPLETED` |
+| GET    | `/kitchen/status` | ovens, trays and the waiting queue |
+| GET    | `/health` · `/health/ready` | liveness · readiness (DB) |
 
-## Key design decisions
-
-- **Scheduling unit is one snack, one tray.** An order of 3 cookies takes 3 trays.
-  Maps cleanly to the 6 slots and to "which item is in which oven".
-- **Orders enter the queue on payment,** not on placement — so unpaid orders never
-  hold up the kitchen. Placement still returns a provisional estimate.
-- **No preemption.** A baking item always finishes; VIPs only reorder the *waiting*
-  queue. This keeps the model honest and the simulation simple.
-- **Estimates are a pure simulation** over the current oven state + queue, so they're
-  deterministic and cheap to recompute whenever the queue changes.
-- **One scheduler, one lock.** All queue/oven changes go through a single guarded
-  path, which is how we avoid double-booked trays and lost orders under load.
-
-## Status
-
-Early development. Building incrementally:
-
-1. Project scaffold + Docker Compose + health check
-2. Menu
-3. Scheduler core (with tests, no API yet)
-4. Orders → provisional ETA
-5. Payments → enqueue
-6. Kitchen monitoring endpoint
-7. VIP dynamic re-estimation
-8. Concurrency tests + observability
+Interactive API docs at `/docs` once the app is running.
 
 ## Running it
 
-> Coming with the scaffold step.
+Prerequisites: **Docker** (+ Compose) and **uv**.
 
 ```bash
-docker compose up --build
+make up        # build + run the full stack (API, Postgres, OpenObserve)
 ```
+
+API on http://localhost:8000 (docs at `/docs`). Postgres is not exposed to the host.
+
+### Common commands
+
+| Command | What |
+|---------|------|
+| `make up` | run the whole stack in Docker |
+| `make down` | stop the stack |
+| `make install` | install dependencies (`uv sync --extra dev`) |
+| `make run` | run the API locally with reload |
+| `make test` | unit tests (in the compose network) |
+| `make check` | lint + format check + type check + unit tests |
+| `make e2e` | e2e flows + Schemathesis contract tests |
+| `make migrate` | apply migrations (`alembic upgrade head`) |
+| `make migration m="..."` | create a new migration |
+| `make migrate-down` | roll back the last migration |
+| `make obs` / `make dashboards` | run OpenObserve / seed its dashboards |
+
+## Development notes
+
+- **Migrations ship in their own PR**, merged before the code that depends on the
+  new schema.
+- The kitchen engine is a single in-memory instance guarded by one lock — all
+  oven/queue changes go through it, which is how double-booked trays are avoided.
+  It does not yet scale horizontally (one process owns the queue).
+- Money is `Decimal` (`Numeric(10,2)`); prices are validated and snapshotted onto
+  the order at placement time.
