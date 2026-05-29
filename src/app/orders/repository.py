@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import CursorResult, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.orders.models import Order, OrderStatus
@@ -23,6 +23,16 @@ class OrderRepository:
 
     async def get(self, order_id: uuid.UUID) -> Order | None:
         return await self._session.get(Order, order_id)
+
+    async def list_active(self) -> list[Order]:
+        """Orders the kitchen should be working on: queued or baking, oldest first."""
+        stmt = (
+            select(Order)
+            .where(Order.status.in_([OrderStatus.QUEUED, OrderStatus.BAKING]))
+            .order_by(Order.placed_at)
+        )
+        result = await self._session.scalars(stmt)
+        return list(result)
 
     async def add(self, order: Order) -> Order:
         self._session.add(order)

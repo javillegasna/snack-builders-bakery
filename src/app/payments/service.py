@@ -2,11 +2,10 @@ import uuid
 
 from app.core.clock import Clock
 from app.kitchen.engine import KitchenEngine
-from app.menu.models import Category
 from app.menu.repository import MenuRepository
-from app.orders.factory import build_task_specs
-from app.orders.models import Order, OrderStatus
+from app.orders.models import OrderStatus
 from app.orders.repository import OrderRepository
+from app.orders.specs import MissingMenuItemError, order_specs
 from app.orders.state_machine import assert_transition
 from app.payments.models import Payment, PaymentMethod, PaymentStatus
 from app.payments.repository import PaymentRepository
@@ -56,19 +55,13 @@ class PaymentService:
         if status is PaymentStatus.CONFIRMED:
             assert_transition(order.status, OrderStatus.QUEUED)
             order.status = OrderStatus.QUEUED
-            specs = build_task_specs(order.priority_level, await self._lines(order))
+            try:
+                specs = await order_specs(order, self._menu)
+            except MissingMenuItemError as exc:
+                raise PaymentStateError(f"menu item {exc} is gone") from None
             etas = await self._engine.enqueue(order.id, specs)
             order.estimated_ready_time = etas.get(order.id)
             others = {oid: eta for oid, eta in etas.items() if oid != order.id}
             await self._orders.update_estimates(others)
 
         return await self._payments.add(payment)
-
-    async def _lines(self, order: Order) -> list[tuple[Category, int]]:
-        lines: list[tuple[Category, int]] = []
-        for item in order.items:
-            menu_item = await self._menu.get(item.menu_item_id)
-            if menu_item is None:
-                raise PaymentStateError(f"menu item {item.menu_item_id} is gone")
-            lines.append((menu_item.category, item.quantity))
-        return lines

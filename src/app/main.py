@@ -10,6 +10,7 @@ from app.core.db import SessionFactory, engine
 from app.core.logging import configure_logging
 from app.core.telemetry import configure_telemetry
 from app.kitchen.engine import KitchenEngine
+from app.kitchen.recovery import recover_orders
 from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
 from app.orders.router import router as orders_router
@@ -23,6 +24,8 @@ configure_logging(_settings)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     kitchen_engine = KitchenEngine(SystemClock(), session_factory=SessionFactory)
     app.state.kitchen_engine = kitchen_engine
+    async with SessionFactory() as session:
+        await recover_orders(kitchen_engine, session)
     await kitchen_engine.start()
     try:
         yield

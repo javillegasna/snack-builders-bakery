@@ -1,9 +1,9 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
-from app.core.clock import FakeClock
+from app.core.clock import FakeClock, SystemClock
 from app.kitchen.engine import KitchenEngine
 from app.kitchen.models import PriorityLevel
 from app.main import app
@@ -55,9 +55,10 @@ async def test_remaining_seconds_reported() -> None:
     assert busy[0].remaining_seconds == COOKIE
 
 
-def test_kitchen_status_endpoint() -> None:
-    with TestClient(app) as client:
-        resp = client.get("/kitchen/status")
+async def test_kitchen_status_endpoint(client: AsyncClient) -> None:
+    # wire the engine directly instead of booting the DB-touching lifespan
+    app.state.kitchen_engine = KitchenEngine(SystemClock())
+    resp = await client.get("/kitchen/status")
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["ovens"]) == 2
