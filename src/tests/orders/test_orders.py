@@ -1,15 +1,17 @@
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.clock import SystemClock
 from app.kitchen.engine import KitchenEngine
 from app.kitchen.router import get_engine
 from app.main import app
+from app.orders.models import Order, OrderPriority, OrderStatus
 
 
 @pytest_asyncio.fixture
@@ -132,4 +134,49 @@ async def test_deleting_referenced_menu_item_conflicts(
     )
     assert placed.status_code == 201
     resp = await order_client.delete(f"/menu/items/{item_id}")
+    assert resp.status_code == 409
+
+
+async def _seed_ready_order(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> uuid.UUID:
+    order_id = uuid.uuid4()
+    async with sessionmaker() as session:
+        session.add(
+            Order(
+                id=order_id,
+                priority_level=OrderPriority.WALK_IN,
+                status=OrderStatus.READY,
+                total_price=Decimal("3.50"),
+                placed_at=datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+    return order_id
+
+
+async def test_pickup_completes_ready_order(
+    order_client: AsyncClient,
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    order_id = await _seed_ready_order(db_sessionmaker)
+    resp = await order_client.post(f"/orders/{order_id}/pickup")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert body["completed_at"] is not None
+
+
+async def test_pickup_unknown_order_returns_404(order_client: AsyncClient) -> None:
+    resp = await order_client.post(f"/orders/{uuid.uuid4()}/pickup")
+    assert resp.status_code == 404
+
+
+async def test_pickup_non_ready_order_conflicts(order_client: AsyncClient) -> None:
+    item_id = await _create_menu_item(order_client)
+    placed = await order_client.post(
+        "/orders", json={"items": [{"menu_item_id": item_id, "quantity": 1}]}
+    )
+    order_id = placed.json()["id"]  # still pending_payment
+    resp = await order_client.post(f"/orders/{order_id}/pickup")
     assert resp.status_code == 409

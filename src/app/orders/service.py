@@ -19,6 +19,10 @@ class OrderNotFoundError(Exception):
     """Raised when an order id does not exist."""
 
 
+class OrderNotReadyError(Exception):
+    """Raised when an order cannot be picked up because it is not ready."""
+
+
 class OrderService:
     def __init__(
         self,
@@ -65,6 +69,14 @@ class OrderService:
         if order is None:
             raise OrderNotFoundError(str(order_id))
         return order
+
+    async def complete_order(self, order_id: uuid.UUID) -> Order:
+        order = await self.get_order(order_id)
+        if order.status != OrderStatus.READY:
+            raise OrderNotReadyError(str(order_id))
+        order.status = OrderStatus.COMPLETED
+        order.completed_at = self._clock.now()
+        return await self._orders.add(order)
 
     async def _require_available(self, menu_item_id: uuid.UUID) -> MenuItem:
         menu_item = await self._menu.get(menu_item_id)
