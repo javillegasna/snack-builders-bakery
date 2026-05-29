@@ -89,12 +89,22 @@ make help     # list every available command
 Common ones: `make up` / `make down`, `make test`, `make check`, `make e2e`,
 `make migrate`.
 
-## Development notes
+## Design decisions
 
-- **Migrations ship in their own PR**, merged before the code that depends on the
-  new schema.
-- The kitchen engine is a single in-memory instance guarded by one lock — all
-  oven/queue changes go through it. It does not yet scale horizontally (one
-  process owns the queue).
-- Money is `Decimal`; prices are validated and snapshotted onto the order at
-  placement time.
+- **Patterns:** Repository (data access), Strategy (payment method + bake policy),
+  State Machine (order lifecycle), Factory (order → bake tasks). The scheduler is a
+  pure function of `(oven state, queue, now)`, kept free of I/O so it stays testable.
+- **One engine, one lock.** All oven/queue mutations go through a single in-memory
+  engine behind an `asyncio` lock — that's how double-booked trays and lost orders
+  are avoided. DB writes happen outside the lock. Trade-off: one process owns the
+  queue, so it doesn't scale horizontally yet.
+- **Enqueue on payment, not placement.** Unpaid orders never hold an oven; placement
+  only returns a provisional estimate.
+- **No preemption.** A baking item always finishes; a VIP reorders only the *waiting*
+  queue, and everyone behind it gets re-estimated and persisted.
+- **Injectable clock** so tests fast-forward time deterministically.
+- **Migrations ship in their own PR**, merged before the code that needs the schema.
+- Money is `Decimal`; prices are snapshotted onto the order at placement time.
+
+For the reasoning behind each, the PR history walks through the decisions one
+feature at a time.
