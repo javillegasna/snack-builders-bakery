@@ -1,10 +1,20 @@
 import uuid
 from datetime import datetime
+from typing import cast
 
-from sqlalchemy import update
+from sqlalchemy import CursorResult, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.orders.models import Order, OrderStatus
+
+_ALLOWED_PREV: dict[OrderStatus, list[OrderStatus]] = {
+    OrderStatus.BAKING: [OrderStatus.QUEUED],
+    OrderStatus.READY: [OrderStatus.QUEUED, OrderStatus.BAKING],
+}
+_TIMESTAMP_FIELD: dict[OrderStatus, str] = {
+    OrderStatus.BAKING: "started_baking_at",
+    OrderStatus.READY: "ready_at",
+}
 
 
 class OrderRepository:
@@ -30,3 +40,17 @@ class OrderRepository:
                 )
                 .values(estimated_ready_time=eta)
             )
+
+    async def advance_status(
+        self, order_id: uuid.UUID, status: OrderStatus, at: datetime
+    ) -> bool:
+        """Forward-only status transition with timestamp. Returns True if applied."""
+        result = cast(
+            "CursorResult[None]",
+            await self._session.execute(
+                update(Order)
+                .where(Order.id == order_id, Order.status.in_(_ALLOWED_PREV[status]))
+                .values(status=status, **{_TIMESTAMP_FIELD[status]: at})
+            ),
+        )
+        return result.rowcount > 0

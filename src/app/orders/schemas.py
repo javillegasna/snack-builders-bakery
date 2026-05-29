@@ -37,4 +37,7 @@ class OrderRead(BaseModel):
     total_price: Decimal
     placed_at: datetime
     estimated_ready_time: datetime | None
+    started_baking_at: datetime | None
+    ready_at: datetime | None
+    completed_at: datetime | None
     items: list[OrderItemRead]

@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.core.clock import SystemClock
 from app.core.config import get_settings
-from app.core.db import engine
+from app.core.db import SessionFactory, engine
 from app.core.logging import configure_logging
 from app.core.telemetry import configure_telemetry
 from app.kitchen.engine import KitchenEngine
@@ -21,7 +21,7 @@ configure_logging(_settings)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    kitchen_engine = KitchenEngine(SystemClock())
+    kitchen_engine = KitchenEngine(SystemClock(), session_factory=SessionFactory)
     app.state.kitchen_engine = kitchen_engine
     await kitchen_engine.start()
     try:

@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
@@ -36,6 +37,11 @@ async def _db() -> AsyncGenerator[None, None]:
             )
         )
     yield
+
+
+@pytest.fixture
+def db_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    return _TestSession
 
 
 @pytest_asyncio.fixture

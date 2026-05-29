@@ -52,6 +52,15 @@ class Order(Base):
     estimated_ready_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    started_baking_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     items: Mapped[list["OrderItem"]] = relationship(
         back_populates="order",
