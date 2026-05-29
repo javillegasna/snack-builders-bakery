@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.menu.repository import MenuRepository
 from app.menu.schemas import MenuItemCreate, MenuItemRead, MenuItemUpdate
-from app.menu.service import MenuItemNotFoundError, MenuService
+from app.menu.service import MenuItemInUseError, MenuItemNotFoundError, MenuService
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 
@@ -56,7 +56,10 @@ async def update_item(
 @router.delete(
     "/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"description": "Menu item not found"}},
+    responses={
+        404: {"description": "Menu item not found"},
+        409: {"description": "Menu item is referenced by existing orders"},
+    },
 )
 async def delete_item(item_id: uuid.UUID, service: MenuServiceDep) -> None:
     try:
@@ -64,4 +67,9 @@ async def delete_item(item_id: uuid.UUID, service: MenuServiceDep) -> None:
     except MenuItemNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="menu item not found"
+        ) from None
+    except MenuItemInUseError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="menu item is referenced by existing orders",
         ) from None

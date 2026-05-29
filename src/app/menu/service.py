@@ -9,6 +9,10 @@ class MenuItemNotFoundError(Exception):
     """Raised when a menu item id does not exist."""
 
 
+class MenuItemInUseError(Exception):
+    """Raised when a menu item cannot be deleted because orders reference it."""
+
+
 class MenuService:
     def __init__(self, repository: MenuRepository) -> None:
         self._repository = repository
@@ -30,7 +34,10 @@ class MenuService:
         return await self._repository.add(item)
 
     async def delete_item(self, item_id: uuid.UUID) -> None:
-        await self._repository.delete(await self._require(item_id))
+        item = await self._require(item_id)
+        if await self._repository.is_referenced(item_id):
+            raise MenuItemInUseError(str(item_id))
+        await self._repository.delete(item)
 
     async def _require(self, item_id: uuid.UUID) -> MenuItem:
         item = await self._repository.get(item_id)
