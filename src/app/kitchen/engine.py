@@ -27,7 +27,8 @@ class KitchenEngine:
 
     async def enqueue(
         self, order_id: uuid.UUID, specs: list[TaskSpec]
-    ) -> datetime | None:
+    ) -> dict[uuid.UUID, datetime]:
+        """Enqueue an order and return the recomputed ETA for every active order."""
         async with self._lock:
             for priority, bake_seconds in specs:
                 self._scheduler.enqueue(
@@ -41,9 +42,9 @@ class KitchenEngine:
                 self._seq += 1
             now = self._clock.now()
             self._scheduler.tick(now)
-            eta = self._scheduler.estimate(now).get(order_id)
+            etas = self._scheduler.estimate(now)
         self._wakeup.set()
-        return eta
+        return etas
 
     async def simulate(
         self, order_id: uuid.UUID, specs: list[TaskSpec]

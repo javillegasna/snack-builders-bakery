@@ -20,7 +20,8 @@ async def test_enqueue_fills_slots_and_returns_eta() -> None:
     engine = make_engine()
     order_id = uuid.uuid4()
     specs = [(PriorityLevel.WALK_IN, COOKIE)] * 7
-    eta = await engine.enqueue(order_id, specs)
+    etas = await engine.enqueue(order_id, specs)
+    eta = etas.get(order_id)
     assert eta is not None
     assert (eta - NOW).total_seconds() == 2 * COOKIE
     status = await engine.status()
