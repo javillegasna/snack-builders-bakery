@@ -25,23 +25,22 @@ PENDING_PAYMENT ──pay──▶ QUEUED ──▶ BAKING ──▶ READY ─�
 - **Placement** returns a *provisional* ETA (non-mutating simulation); the order
   doesn't hold an oven yet.
 - **Payment** commits the order into the live queue and returns the *authoritative*
-  ETA. Other orders' ETAs are recomputed and persisted.
-- The kitchen **persists progress** (`BAKING`/`READY` + timestamps) and **rebuilds
-  its queue on restart** from active orders.
+  ETA; other orders' ETAs are recomputed and persisted.
+- The kitchen **persists progress** and **rebuilds its queue on restart** from
+  active orders.
 
-**Bake time** defaults per category (cookie 5 min, pastry 10 min, bread 20 min) and
-can be overridden per menu item (`bake_seconds`).
+Bake time defaults per category and can be overridden per menu item.
 
 ## Stack
 
-- **FastAPI** (async) + **Pydantic v2**
-- **PostgreSQL** + **SQLAlchemy 2.0 (async)** + **Alembic**
+- **FastAPI** (async) + **Pydantic**
+- **PostgreSQL** + **SQLAlchemy** (async) + **Alembic**
 - Pure-Python scheduler core (`heapq`) with an injectable clock for deterministic,
   fast-forwardable tests
-- **pytest** (unit) + black-box **e2e** (httpx flows + Schemathesis contract tests)
-- **Docker Compose** for one-command setup; **OpenTelemetry → OpenObserve** for logs,
-  metrics and traces
-- **uv** for dependency management
+- **pytest** (unit) + black-box **e2e** (httpx flows + Schemathesis)
+- **Docker Compose**; **OpenTelemetry → OpenObserve** for logs, metrics and traces
+
+Exact versions live in [`pyproject.toml`](pyproject.toml).
 
 ## Layout
 
@@ -54,7 +53,7 @@ src/app/
   menu/      # browse + manage items
   orders/    # place, track, pickup, state machine
   payments/  # cash / card (Strategy)
-  kitchen/   # the scheduler + live engine
+  kitchen/   # scheduler + live engine
 src/migrations/   # Alembic migrations
 src/tests/        # unit tests, by module
 src/e2e/          # black-box tests against a running API
@@ -64,55 +63,38 @@ The scheduler never reads the wall clock directly — time is passed in — so t
 trickiest logic is easy to test and the suite can simulate "20 minutes from now"
 without waiting.
 
-## Endpoints
+> **Best way to understand the system:** read the black-box e2e tests in
+> [`src/e2e/`](src/e2e/). They exercise the real use cases end-to-end (place → pay →
+> bake → pickup, VIP queue-jumping, menu rules) against a running API, so they double
+> as executable, always-current documentation of how the app behaves.
 
-| Method | Endpoint | What |
-|--------|----------|------|
-| GET    | `/menu` | browse available items |
-| POST   | `/menu/items` | add an item (optional `bake_seconds` override) |
-| PATCH  | `/menu/items/{id}` | update an item |
-| DELETE | `/menu/items/{id}` | remove an item (409 if referenced by orders) |
-| POST   | `/orders` | place an order → price + provisional ETA |
-| GET    | `/orders/{id}` | track status + ETA + timings |
-| POST   | `/orders/{id}/payment` | pay (cash/card) → enqueue + authoritative ETA |
-| POST   | `/orders/{id}/pickup` | mark a `READY` order collected → `COMPLETED` |
-| GET    | `/kitchen/status` | ovens, trays and the waiting queue |
-| GET    | `/health` · `/health/ready` | liveness · readiness (DB) |
-
-Interactive API docs at `/docs` once the app is running.
-
-## Running it
+## Getting started
 
 Prerequisites: **Docker** (+ Compose) and **uv**.
 
 ```bash
-make up        # build + run the full stack (API, Postgres, OpenObserve)
+make up
 ```
 
-API on http://localhost:8000 (docs at `/docs`). Postgres is not exposed to the host.
+- API: http://localhost:8000
+- **Interactive API docs (all endpoints): http://localhost:8000/docs**
+- Postgres is not exposed to the host.
 
-### Common commands
+## Commands
 
-| Command | What |
-|---------|------|
-| `make up` | run the whole stack in Docker |
-| `make down` | stop the stack |
-| `make install` | install dependencies (`uv sync --extra dev`) |
-| `make run` | run the API locally with reload |
-| `make test` | unit tests (in the compose network) |
-| `make check` | lint + format check + type check + unit tests |
-| `make e2e` | e2e flows + Schemathesis contract tests |
-| `make migrate` | apply migrations (`alembic upgrade head`) |
-| `make migration m="..."` | create a new migration |
-| `make migrate-down` | roll back the last migration |
-| `make obs` / `make dashboards` | run OpenObserve / seed its dashboards |
+```bash
+make help     # list every available command
+```
+
+Common ones: `make up` / `make down`, `make test`, `make check`, `make e2e`,
+`make migrate`.
 
 ## Development notes
 
 - **Migrations ship in their own PR**, merged before the code that depends on the
   new schema.
 - The kitchen engine is a single in-memory instance guarded by one lock — all
-  oven/queue changes go through it, which is how double-booked trays are avoided.
-  It does not yet scale horizontally (one process owns the queue).
-- Money is `Decimal` (`Numeric(10,2)`); prices are validated and snapshotted onto
-  the order at placement time.
+  oven/queue changes go through it. It does not yet scale horizontally (one
+  process owns the queue).
+- Money is `Decimal`; prices are validated and snapshotted onto the order at
+  placement time.
