@@ -2,7 +2,7 @@ import enum
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Numeric, String
+from sqlalchemy import Boolean, Integer, Numeric, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,3 +38,11 @@ class MenuItem(Base):
     )
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     available: Mapped[bool] = mapped_column(Boolean, default=True)
+    bake_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    @property
+    def effective_bake_seconds(self) -> int:
+        """Per-item bake time override, falling back to the category default."""
+        if self.bake_seconds is not None:
+            return self.bake_seconds
+        return self.category.bake_seconds

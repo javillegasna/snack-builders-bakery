@@ -1,6 +1,5 @@
 from app.kitchen.engine import TaskSpec
 from app.kitchen.models import PriorityLevel
-from app.menu.models import Category
 from app.orders.models import OrderPriority
 
 _PRIORITY_MAP: dict[OrderPriority, PriorityLevel] = {
@@ -15,12 +14,15 @@ def to_priority_level(priority: OrderPriority) -> PriorityLevel:
 
 
 def build_task_specs(
-    priority: OrderPriority, lines: list[tuple[Category, int]]
+    priority: OrderPriority, lines: list[tuple[int, int]]
 ) -> list[TaskSpec]:
-    """One bake task per snack unit (quantity expanded), all at the order priority."""
+    """One bake task per snack unit (quantity expanded), all at the order priority.
+
+    Each line is ``(bake_seconds, quantity)``.
+    """
     level = to_priority_level(priority)
     return [
-        (level, category.bake_seconds)
-        for category, quantity in lines
+        (level, bake_seconds)
+        for bake_seconds, quantity in lines
         for _ in range(quantity)
     ]

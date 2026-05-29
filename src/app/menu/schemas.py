@@ -2,11 +2,12 @@ import uuid
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.menu.models import Category
 
 _MAX_PRICE = Decimal("99999999.99")
+_MAX_BAKE_SECONDS = 86400
 
 
 def _reject_null_bytes(value: str) -> str:
@@ -28,6 +29,7 @@ PriceField = Annotated[
         json_schema_extra={"multipleOf": 0.01},
     ),
 ]
+BakeSecondsField = Annotated[int, Field(gt=0, le=_MAX_BAKE_SECONDS)]
 
 
 class MenuItemCreate(BaseModel):
@@ -35,6 +37,7 @@ class MenuItemCreate(BaseModel):
     category: Category
     price: PriceField
     available: bool = True
+    bake_seconds: BakeSecondsField | None = None
 
 
 class MenuItemUpdate(BaseModel):
@@ -42,6 +45,7 @@ class MenuItemUpdate(BaseModel):
     category: Category | None = None
     price: PriceField | None = None
     available: bool | None = None
+    bake_seconds: BakeSecondsField | None = None
 
 
 class MenuItemRead(BaseModel):
@@ -52,8 +56,4 @@ class MenuItemRead(BaseModel):
     category: Category
     price: Decimal
     available: bool
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def bake_seconds(self) -> int:
-        return self.category.bake_seconds
+    bake_seconds: int = Field(validation_alias="effective_bake_seconds")

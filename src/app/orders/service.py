@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from app.core.clock import Clock
 from app.kitchen.engine import KitchenEngine
-from app.menu.models import Category, MenuItem
+from app.menu.models import MenuItem
 from app.menu.repository import MenuRepository
 from app.orders.factory import build_task_specs
 from app.orders.models import Order, OrderItem, OrderStatus
@@ -38,7 +38,7 @@ class OrderService:
 
     async def place_order(self, data: OrderCreate) -> Order:
         items: list[OrderItem] = []
-        lines: list[tuple[Category, int]] = []
+        lines: list[tuple[int, int]] = []
         total = Decimal("0")
         for line in data.items:
             menu_item = await self._require_available(line.menu_item_id)
@@ -49,7 +49,7 @@ class OrderService:
                     unit_price=menu_item.price,
                 )
             )
-            lines.append((menu_item.category, line.quantity))
+            lines.append((menu_item.effective_bake_seconds, line.quantity))
             total += menu_item.price * line.quantity
 
         order = Order(
