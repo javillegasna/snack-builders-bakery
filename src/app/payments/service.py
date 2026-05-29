@@ -57,7 +57,10 @@ class PaymentService:
             assert_transition(order.status, OrderStatus.QUEUED)
             order.status = OrderStatus.QUEUED
             specs = build_task_specs(order.priority_level, await self._lines(order))
-            order.estimated_ready_time = await self._engine.enqueue(order.id, specs)
+            etas = await self._engine.enqueue(order.id, specs)
+            order.estimated_ready_time = etas.get(order.id)
+            others = {oid: eta for oid, eta in etas.items() if oid != order.id}
+            await self._orders.update_estimates(others)
 
         return await self._payments.add(payment)
 
