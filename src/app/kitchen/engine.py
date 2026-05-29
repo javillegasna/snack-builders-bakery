@@ -45,6 +45,23 @@ class KitchenEngine:
         self._wakeup.set()
         return eta
 
+    async def simulate(
+        self, order_id: uuid.UUID, specs: list[TaskSpec]
+    ) -> datetime | None:
+        """Provisional ETA for a hypothetical order. Does not mutate the queue."""
+        async with self._lock:
+            now = self._clock.now()
+            extra = [
+                BakeTask(
+                    order_id=order_id,
+                    priority=priority,
+                    bake_seconds=bake_seconds,
+                    seq=self._seq + offset,
+                )
+                for offset, (priority, bake_seconds) in enumerate(specs)
+            ]
+            return self._scheduler.simulate(now, extra).get(order_id)
+
     async def status(self) -> KitchenStatus:
         async with self._lock:
             return self._snapshot(self._clock.now())

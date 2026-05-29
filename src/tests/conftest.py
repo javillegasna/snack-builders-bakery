@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 import app.menu.models  # noqa: F401
+import app.orders.models  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import Base, get_session
 from app.main import app
@@ -30,7 +31,9 @@ _TestSession = async_sessionmaker(_engine, expire_on_commit=False)
 async def _db() -> AsyncGenerator[None, None]:
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(text("TRUNCATE menu_item RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text("TRUNCATE order_item, orders, menu_item RESTART IDENTITY CASCADE")
+        )
     yield
 
 

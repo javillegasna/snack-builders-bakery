@@ -12,6 +12,7 @@ from app.core.telemetry import configure_telemetry
 from app.kitchen.engine import KitchenEngine
 from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
+from app.orders.router import router as orders_router
 
 _settings = get_settings()
 configure_logging(_settings)
@@ -33,6 +34,7 @@ configure_telemetry(app, _settings)
 
 app.include_router(menu_router)
 app.include_router(kitchen_router)
+app.include_router(orders_router)
 
 
 @app.get("/health", tags=["ops"])
